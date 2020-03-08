@@ -23,6 +23,14 @@
 
 (def dd (cheshire/parse-string *dd* true))
 
+(defn disco-bootstrap
+  [params]
+  (cheshire/parse-string
+   (:body (client/get (templ/uritemplate
+                       (str (:discovery-base-url env)
+                            "apis/{api}/{version}/rest")
+                       params) {:accept :json}))))
+
 ;; # Step 3.a: Build client surface
 ;; def build(discovery, collection):
 ;;   for name, resource in discovery.get('resources', {}).iteritems():
@@ -50,20 +58,21 @@
 ;;                 (:resources node)))
 ;;    ))
 
-(defn build
+(defn build!
   ([node] (build node []))
   ([node path]
    (when-let [methods (get node "methods")]
      (let [api-namespace (de-camelcase (s/join "." (concat (:ns-base-path env) path)))
            pushed-namespace *ns*]
        (in-ns (symbol api-namespace))
-       (refer-clojure)
+;;       (refer-clojure) ;; this isn't actually required
        (reduce-kv (fn [m k v]
-                    (doall
-                     (println (str api-namespace ": " (de-camelcase k)))
-                     (println (get v "description"))))
+                    (let [method-name (symbol (de-camelcase k))
+                          method-meta {:doc (get v "description")}]
+;;                      (println (str api-namespace ": " method-name ": " method-meta))
+                      (intern (symbol api-namespace) (with-meta method-name method-meta) (fn[] v))
+                      ))
                   nil (get node "methods"))
-       (println (str api-namespace ": " (keys methods)))
        (in-ns (ns-name pushed-namespace))))
    (when-let [resources (get node "resources")]
      (reduce-kv (fn [m k v]
@@ -81,16 +90,6 @@
 ;;    (slurp (templ/uritemplate
 ;;            (str (:discovery-base-url env) "apis/{api}/{version}/rest")
 ;;            params))))
-
-(defn disco-bootstrap
-  [params]
-  (cheshire/parse-string
-   (:body (client/get (templ/uritemplate
-                       (str (:discovery-base-url env)
-                            "apis/{api}/{version}/rest")
-                       params) {:accept :json}))))
-
-
 
 ;; https://developers.google.com/discovery/v1/building-a-client-library
 ;; def createNewMethod(name, method):
