@@ -1,0 +1,8 @@
+{:paths ["src"]
+ :deps {cprop {:mvn/version "0.1.15"}
+        mount {:mvn/version "0.1.16"}
+        cheshire {:mvn/version "5.10.0"}
+        uritemplate-clj {:mvn/version "1.2.3"}
+        clj-http {:mvn/version "3.10.0"}
+        }
+ }

@@ -1,0 +1,4 @@
+{
+ :discovery-base-url "https://www.googleapis.com/discovery/v1/"
+ :ns-base-path ["gappy" "build"]
+ }
