@@ -1,8 +1,11 @@
 {:paths ["src"]
- :deps {cprop {:mvn/version "0.1.15"}
+ :deps {org.clojure/core.async {:mvn/version "1.1.587"}
+        cprop {:mvn/version "0.1.15"}
         mount {:mvn/version "0.1.16"}
         cheshire {:mvn/version "5.10.0"}
         uritemplate-clj {:mvn/version "1.2.3"}
         clj-http {:mvn/version "3.10.0"}
+        clj-oauth2 {:mvn/version "0.2.0"}
+        ring/ring-jetty-adapter {:mvn/version "1.8.0"}
         }
  }

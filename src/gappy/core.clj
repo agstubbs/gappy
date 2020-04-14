@@ -5,3 +5,7 @@
             [cheshire.core :as cheshire]
             [uritemplate-clj.core :as templ]
             [clj-http.core :as http]))
+
+
+(def -main [& args]
+  (println args))
