@@ -15,10 +15,10 @@
 ;; https://tools.ietf.org/html/rfc7636#appendix-A
 ;; (based on https://tools.ietf.org/html/rfc4648#page-7 )
 (defn base64url-encode [buffer]
-  (apply str (map char
-                         (.encode (.withoutPadding
-                                   (Base64/getUrlEncoder))
-                                  buffer))))
+  (apply str
+         (map
+          char
+          (.encode (.withoutPadding (Base64/getUrlEncoder)) buffer))))
 
 (defn build-auth-url [{:keys
                       [auth_uri scope response_type redirect_uri]
