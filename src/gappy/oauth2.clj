@@ -21,14 +21,6 @@
           char
           (.encode (.withoutPadding (Base64/getUrlEncoder)) buffer))))
 
-;; client_id 	The client ID obtained from the API Console Credentials page.
-;; client_secret 	The client secret obtained from the API Console Credentials page.
-;; code 	The authorization code returned from the initial request.
-;; code_verifier 	The code verifier you created in Step 1.
-;; grant_type 	As defined in the OAuth 2.0 specification, this field must contain a value of authorization_code.
-;; redirect_uri 	One of the redirect URIs listed for your project in the API Console Credentials page for the given client_id.
-
-
 ;; https://developers.google.com/identity/protocols/oauth2/openid-connect#createxsrftoken
 (defn generate-state []
   (base64url-encode (make-random-buffer 32)))
@@ -79,38 +71,53 @@
                                (URLEncoder/encode v)))) [] params)))
     ))
 
-(defn collate-code-exchange [{:keys
-                              [token_uri
-                               client_id client_secret
-                               code code_verifier
-                               grant_type
-                               redirect_uri]
-                              :as authz-data
-                              :or {redirect_uri "urn:ietf:wg:oauth:2.0:oob"
-                                   grant_type "authorization_code"}}]
-  {:url token_uri
-   :query-params (conj (select-keys authz-data [:client_id
-                                                :client_secret
-                                                :code
-                                                :code_verifier])
-                       {:redirect_uri redirect_uri
-                        :grant_type grant_type})
-   })
+(defn exchange-code-for-token
+  ([client-credentials code]
+   (exchange-code-for-token client-credentials code nil))
+  ([{:keys [token_uri client_id client_secret redirect_uri]
+     :or {redirect_uri "urn:ietf:wg:oauth:2.0:oob"}
+     :as client-credentials}
+    code
+    code_verifier]
+   (let [code_map (conj {:grant_type "authorization_code"
+                         :redirect_uri redirect_uri
+                         :code code}
+                        (if code_verifier {:code_verifier code_verifier}))
+         response (client/post token_uri
+                               {:query-params (conj (select-keys client-credentials
+                                                                 [:client_id
+                                                                  :client_secret
+                                                                  :code
+                                                                  :code_verifier])
+                                                    code_map)
+                                :throw-exceptions false
+                                :as :json})]
+     {:status (:status response)
+      :reason-phrase (:reason-phrase response)
+      :token (:body response)}
+     )))
 
-
-(defn exchange-code-for-token [client-credentials code code-verifier]
-  (let [request-data (collate-code-exchange (conj client-credentials
-                                                  {:code code
-                                                   :code_verifier code-verifier}))
-        response (client/post (:url request-data)
-                              {:query-params (:query-params request-data)
-                               :throw-exceptions false
+    
+(defn refresh-token [{:keys [token_uri client_id client_secret] :as client-credentials}
+                     {:keys [refresh_token] :as token}]
+  (let [response (client/post token_uri
+                              {:content-type "application/x-www-form-urlencoded"
+                               :query-params {:client_id client_id
+                                              :client_secret client_secret
+                                              :refresh_token refresh_token
+                                              :grant_type "refresh_token"}
                                :as :json})]
-    (:body response)
+    {:status (:status response)
+     :reason-phrase (:reason-phrase response)
+     :token (:body response)}
     ))
 
 (defn revoke-token [token]
-  (client/post "https://oauth2.googleapis.com/revoke"
-              {:content-type "application/x-www-form-urlencoded"
-               :query-params {:token token}
-               :as :json}))
+  (let [response (client/post "https://oauth2.googleapis.com/revoke"
+                              {:content-type "application/x-www-form-urlencoded"
+                               :query-params {:token token}
+                               :as :json})]
+    {:status (:status response)
+     :reason-phrase (:reason-phrase response)
+     :token (:body response)}
+    ))

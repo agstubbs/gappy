@@ -230,11 +230,14 @@
 
 
 (def icreds (:installed creds))
+(def state (oauth2/generate-state))
 (def code-verifier (oauth2/generate-code-verifier))
 (def code-challenge (oauth2/pkce-challenge-s256 code-verifier))
 (browse/browse-url (oauth2/build-authn-url (conj icreds
-                            {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]
-                             :code_challenge code-challenge
-                             :code_challenge_method "S256"})))
+                                                 {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]
+                                                  :code_challenge code-challenge
+                                                  :code_challenge_method "S256"}
+                                                 (if state {:state state}))))
 (def token-data (oauth2/exchange-code-for-token icreds "" code-verifier))
-(oauth2/revoke-token (:refresh_token token-data))
+(oauth2/refresh-token icreds (:token token-data))
+(oauth2/revoke-token (:refresh_token (:token token-data)))
