@@ -7,9 +7,10 @@
          '[uritemplate-clj.core :as templ]
          '[clj-http.client :as client]
          '[clojure.java.browse :as browse]
-         '[clj-oauth2.client :as oauth2])
-(require '[clojure.core.async :as async :refer [<!! >!! timeout chan alt!!]])
-(require '[ring.adapter.jetty :as jetty])
+;;         '[clj-oauth2.client :as oauth2])
+         '[clojure.core.async :as async :refer [<!! >!! timeout chan alt!!]]
+         '[ring.adapter.jetty :as jetty]
+         '[gappy.oauth2 :as oauth2])
 
 (mount/start)
 
@@ -161,6 +162,9 @@
  :scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]}
 
 
+(oauth2/build-authn-url (conj icreds
+                              {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]}))
+
 (oauth2/make-auth-request {:authorization-uri (:auth_uri icreds)
                            :client-id (:client_id icreds)
                            :client-secret (:client_secret icreds)
@@ -217,3 +221,20 @@
 
 
          
+
+
+(let [ce (oauth2/collate-code-exchange (conj icreds
+                               {:code ""
+                                :code_verifier code-verifier}))]
+        (client-get (:url ce) {:query-params (:query-params ce)}))
+
+
+(def icreds (:installed creds))
+(def code-verifier (oauth2/generate-code-verifier))
+(def code-challenge (oauth2/pkce-challenge-s256 code-verifier))
+(browse/browse-url (oauth2/build-authn-url (conj icreds
+                            {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]
+                             :code_challenge code-challenge
+                             :code_challenge_method "S256"})))
+(def token-data (oauth2/exchange-code-for-token icreds "" code-verifier))
+(oauth2/revoke-token (:refresh_token token-data))
