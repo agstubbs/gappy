@@ -121,9 +121,6 @@
 
 
 
-(browse/browse-url "https://www.google.com/")
-
-
 ;; (defn disco-bootstrap
 ;;   [params]
 ;;   (cheshire/parse-string
@@ -153,42 +150,9 @@
 
 ;; (def creds (cheshire/parse-string (slurp "/Users/ags/.credentials/gappy.json")))
 
-(def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
-(def icreds (:installed creds))
-{:authorization-uri (:auth_uri icreds)
- :client-id (:client_id icreds)
- :client-secret (:client_secret icreds)
- :redirect-uri "http://localhost:8080"
- :scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]}
-
-
-(oauth2/build-authn-url (conj icreds
-                              {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]}))
-
-(oauth2/make-auth-request {:authorization-uri (:auth_uri icreds)
-                           :client-id (:client_id icreds)
-                           :client-secret (:client_secret icreds)
-                           :redirect-uri "http://localhost:8080"
-                           :scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]})
-
-(def auth-req
-  (oauth2/make-auth-request google-com-oauth2))
-
-(defn handler [request-map]
-  {:status 200
-   :headers {"Content-Type" "text/html"}
-   :body (str "<html><body> your IP is: "
-              (:remote-addr request-map) "</body></html>")})
-
-(def server (jetty/run-jetty handler {:port 3000 :join? false}))
-(def oob-redirect-uri "urn:ietf:wg:oauth:2.0:oob")
 
 ;; https://developers.google.com/identity/protocols/oauth2/native-app
 ;; https://developers.google.com/identity/protocols/oauth2/native-app#obtainingaccesstokens
-
-(apply str (doall (map char (.encode (.withoutPadding (Base64/getUrlEncoder)) (let [result (byte-array 32)] (.nextBytes (SecureRandom.) result) result)))))
-
-(import java.net.URLEncode)
 
 ;;(browse/browse-url (make-auth-url (conj icreds {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]
 ;;                                   :redirect_uri "urn:ietf:wg:oauth:2.0:oob"})))
@@ -216,19 +180,8 @@
 
 ;; requests.Session.state()
 
-(def pkce-challenge (gappy.oauth2/pkce-challenge-s256 (gappy.oauth2/base64url-encode pkce)))
 
-
-
-         
-
-
-(let [ce (oauth2/collate-code-exchange (conj icreds
-                               {:code ""
-                                :code_verifier code-verifier}))]
-        (client-get (:url ce) {:query-params (:query-params ce)}))
-
-
+(def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
 (def icreds (:installed creds))
 (def state (oauth2/generate-state))
 (def code-verifier (oauth2/generate-code-verifier))
@@ -241,3 +194,100 @@
 (def token-data (oauth2/exchange-code-for-token icreds "" code-verifier))
 (oauth2/refresh-token icreds (:token token-data))
 (oauth2/revoke-token (:refresh_token (:token token-data)))
+
+;; local server
+
+(defn handler [request-map]
+  {:status 200
+   :headers {"Content-Type" "text/html"}
+   :body (str "<html><body>"
+              request-map
+              "<p>" (:code (:params request-map))
+              "<p>" (:state (:params request-map)) "</body></html>")})
+
+(def server (jetty/run-jetty handler {:port 3000 :join? false}))
+
+
+(require '[ring.adapter.jetty :as jetty]
+         '[gappy.oauth2 :as oauth2]
+         '[gappy.config :refer [env]]
+         '[mount.core :as mount]
+         '[cheshire.core :as cheshire])
+(mount/start)
+
+(def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
+(def icreds (:installed creds))
+
+(def state (oauth2/generate-state))
+(def code-verifier (oauth2/generate-code-verifier))
+(def code-challenge (oauth2/pkce-challenge-s256 code-verifier))
+
+(require '[ring.middleware.params :refer [wrap-params]]
+         '[ring.middleware.keyword-params :refer [wrap-keyword-params]]
+         '[ring.middleware.reload :refer [wrap-reload]]
+         '[ring.util.http-response :as response]
+         '[clojure.java.browse :as browse]
+         '[clojure.core.async :as a :refer [<!! >!! timeout chan alt!!]])
+
+(defn get-handler [state c]
+  (fn [request-map]
+    (if (= (:state (:params request-map)) state)
+      (if (>!! c (:code (:params request-map)))
+        (response/ok)
+        (response/internal-server-error))
+      (response/bad-request))
+    ))
+
+;; (def server (jetty/run-jetty
+;;              (-> handler var wrap-keyword-params wrap-params wrap-reload)
+;;              {:port 3000 :join? false}))
+
+(let [result-chan (chan 1)
+      server (jetty/run-jetty
+              (-> (get-handler state result-chan) wrap-keyword-params wrap-params)
+              {:port 3000 :join? false})]
+  (browse/browse-url (oauth2/build-authn-url (conj icreds
+                                                   {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]
+                                                    :code_challenge code-challenge
+                                                    :code_challenge_method "S256"
+                                                    :redirect_uri "http://localhost:3000/"}
+                                                   (if state {:state state}))))
+  (let [[code timout] (a/alts!! [result-chan (timeout 300000)])]
+    (.stop server)
+    code))
+
+
+(defn run-browser-flow [creds]
+  (let [state (oauth2/generate-state)
+        code-verifier (oauth2/generate-code-verifier)
+        code-challenge (oauth2/pkce-challenge-s256 code-verifier)
+        redirect-uri "http://localhost:3000/"
+        result-chan (chan 1)
+        server (jetty/run-jetty
+                (-> (get-handler state result-chan) wrap-keyword-params wrap-params)
+                {:port 3000 :join? false})]
+    (browse/browse-url (oauth2/build-authn-url (conj creds
+                                                     {:scope ["https://www.googleapis.com/auth/admin.directory.user.readonly"]
+                                                      :code_challenge code-challenge
+                                                      :code_challenge_method "S256"
+                                                      :redirect_uri redirect-uri}
+                                                     (if state {:state state}))))
+    (let [[code timeout] (a/alts!! [result-chan (timeout 300000)])]
+      (.stop server)
+      (oauth2/obtain-token (assoc creds :redirect_uri redirect-uri)
+                           code code-verifier))))
+
+
+;; the good bit
+;; run the whole flow
+(require '[ring.adapter.jetty :as jetty]
+         '[gappy.oauth2 :as oauth2]
+         '[gappy.config :refer [env]]
+         '[gappy.util :as util]
+         '[mount.core :as mount]
+         '[cheshire.core :as cheshire])
+(mount/start)
+
+(def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
+(def icreds (:installed creds))
+(util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"])

@@ -5,7 +5,8 @@
         cheshire {:mvn/version "5.10.0"}
         uritemplate-clj {:mvn/version "1.2.3"}
         clj-http {:mvn/version "3.10.0"}
-        clj-oauth2 {:mvn/version "0.2.0"}
         ring/ring-jetty-adapter {:mvn/version "1.8.0"}
+        ring {:mvn/version "1.8.0"}
+        metosin/ring-http-response {:mvn/version "0.9.1"}
         }
  }

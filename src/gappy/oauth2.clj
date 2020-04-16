@@ -7,6 +7,8 @@
 
 ;; cross-platform note: ring.util.codec/url-encode could replace java.net.URLEncoder
 
+(def oob-redirect-uri "urn:ietf:wg:oauth:2.0:oob")
+
 (defn make-random-buffer [size]
   (let [result (byte-array size)]
     (.nextBytes (SecureRandom.) result)
@@ -45,12 +47,11 @@
 
 ;; https://developers.google.com/identity/protocols/oauth2/native-app
 
-
 (defn build-authn-url [{:keys
                         [auth_uri scope response_type redirect_uri]
                         :as authn-data
                         :or {response_type "code"
-                             redirect_uri "urn:ietf:wg:oauth:2.0:oob"}}]
+                             redirect_uri oob-redirect-uri}}]
   (let [scope-str (s/join " " scope)
         params (conj (select-keys authn-data [:client_id
                                               :response_type
@@ -71,11 +72,11 @@
                                (URLEncoder/encode v)))) [] params)))
     ))
 
-(defn exchange-code-for-token
+(defn obtain-token
   ([client-credentials code]
-   (exchange-code-for-token client-credentials code nil))
+   (obtain-token client-credentials code nil))
   ([{:keys [token_uri client_id client_secret redirect_uri]
-     :or {redirect_uri "urn:ietf:wg:oauth:2.0:oob"}
+     :or {redirect_uri oob-redirect-uri}
      :as client-credentials}
     code
     code_verifier]
