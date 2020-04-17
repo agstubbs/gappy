@@ -113,10 +113,13 @@
      :token (:body response)}
     ))
 
-(defn revoke-token [token]
-  (let [response (client/post "https://oauth2.googleapis.com/revoke"
+(defn revoke-token
+  "Revokes a given token; either the string representation of an actual access or refresh token, or a map containing a refresh token or an access token; the refresh token will be used in preference to the access token, if present."
+  [token]
+  (let [t (or (:refresh_token token) (:access_token token) token)
+        response (client/post "https://oauth2.googleapis.com/revoke"
                               {:content-type "application/x-www-form-urlencoded"
-                               :query-params {:token token}
+                               :query-params {:token t}
                                :as :json})]
     {:status (:status response)
      :reason-phrase (:reason-phrase response)

@@ -208,7 +208,7 @@
                                                  (if state {:state state}))))
 (def token-data (oauth2/exchange-code-for-token icreds "" code-verifier))
 (oauth2/refresh-token icreds (:token token-data))
-(oauth2/revoke-token (:refresh_token (:token token-data)))
+(oauth2/revoke-token  token-data)
 
 ;; local server
 
@@ -307,7 +307,7 @@
 (def icreds (:installed creds))
 (def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"]))
 
-(oauth2/revoke-token (:refresh_token auth-token))
+(oauth2/revoke-token auth-token)
 
 ;; general usefulness
 (require '[clojure.string :as str]
