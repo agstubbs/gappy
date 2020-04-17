@@ -27,13 +27,20 @@
 
 ;; (def dd (cheshire/parse-string *dd* true))
 
+(require '[cprop.core :refer [load-config]]
+         '[mount.core :as mount]
+         '[gappy.config :refer [env]]
+         '[cheshire.core :as cheshire]
+         '[uritemplate-clj.core :as templ]
+         '[clj-http.client :as client])
+(mount/start)
+
 (defn disco-bootstrap
   [params]
-  (cheshire/parse-string
-   (:body (client/get (templ/uritemplate
-                       (str (:discovery-base-url env)
-                            "apis/{api}/{version}/rest")
-                       params) {:accept :json})) true))
+  (:body (client/get (templ/uritemplate
+                      (str (:discovery-base-url env)
+                           "apis/{api}/{version}/rest")
+                      params) {:accept :json :as :json})))
 
 
 ;; (defn disco-bootstrap-2
@@ -45,6 +52,14 @@
 ;;                        params) {:accept :json})) true))
 
 (def admin_sdk_v1 (disco-bootstrap {:api "admin" :version "directory_v1"}))
+
+
+(:body (client/get (templ/uritemplate (str (:rootUrl admin_sdk_v1)
+                                                 (:servicePath admin_sdk_v1)
+                                                 (-> admin_sdk_v1 :resources :users :methods :get :path))
+                                            {:userKey "user@domain"})
+                         {:accept :json :as :json
+                          :oauth-token (-> token :token :access_token)}))
 
 ;; # Step 3.a: Build client surface
 ;; def build(discovery, collection):
@@ -290,4 +305,10 @@
 
 (def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
 (def icreds (:installed creds))
-(util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"])
+(def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"]))
+
+(oauth2/revoke-token (:refresh_token auth-token))
+
+;; general usefulness
+(require '[clojure.string :as str]
+         '[clojure.java.io :as io])
