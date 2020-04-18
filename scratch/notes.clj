@@ -497,6 +497,7 @@
                :oauth-token (:access_token auth-token)}))
       
 ;; good bit
+(def example-username "jeff@domain")
 (require '[cprop.core :refer [load-config]]
          '[mount.core :as mount]
          '[cheshire.core :as cheshire]
@@ -508,16 +509,28 @@
          '[gappy.build :as build])
 (mount/start)
 
+(def admin_sdk_v1 (build/disco-bootstrap {:api "admin" :version "directory_v1"}))
 (def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
 (def icreds (:installed creds))
 (def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"]))
 
-(def admin_sdk_v1 (build/disco-bootstrap {:api "admin" :version "directory_v1"}))
+;; V2: simple surface, provides URI for GET
 (def admin-sdk-2 (build/build-2 admin_sdk_v1))
 (def user-account
   (client/get (admin-sdk-2 :method :directory.users.get
-                           :params {:userKey "jeff@domain"})
+                           :params {:userKey example-username})
               {:accept :json :as :json
                :oauth-token (:access_token auth-token)}))
 (:body user-account)
+(oauth2/revoke-token auth-token)
+
+;; V3: simple surface, provides map for client to execute via multimethod
+(require '[gappy.client :as c] :reload)
+(def admin-sdk-3 (build/build-3 admin_sdk_v1))
+(def user-account (c/exec (admin-sdk-3 :method :directory.users.get
+                                       :params {:userKey example-username})
+                          :auth-token auth-token))
+(:body (c/exec (admin-sdk-3 :method :directory.users.get
+                            :params {:userKey example-username :fields "primaryEmail"})
+               :auth-token auth-token))
 (oauth2/revoke-token auth-token)
