@@ -7,7 +7,18 @@
             [ring.util.http-response :as response]
             [clojure.java.browse :as browse]
             [clojure.java.io :as io]
+            [clojure.string :as s]
             [clojure.core.async :as a])
+  (:import java.net.URLEncoder))
+
+(defn build-query-str [m]
+    (s/join "&"
+            (reduce-kv
+             (fn [c k v]
+               (conj c
+                     (str (URLEncoder/encode (name k))
+                          "="
+                          (URLEncoder/encode v)))) [] m))
   )
 
 (defn get-handler [state c]
@@ -35,6 +46,7 @@
                                                       :redirect_uri redirect-uri}
                                                      (if state {:state state}))))
     (let [[code _] (a/alts!! [result-chan (a/timeout timeout)])]
+      ;; FIXME: race condition where (.stop server) is run before page is actually served!
       (.stop server)
       (if code (:token (oauth2/obtain-token (assoc creds :redirect_uri redirect-uri)
                                             code code-verifier))))))

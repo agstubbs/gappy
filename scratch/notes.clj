@@ -71,8 +71,8 @@
 
 
 ;; from https://nukelight.wordpress.com/2012/02/29/clojure-one-liners/
-;; (defn de-camelcase [str]
-;;     (s/join "-" (map s/lower-case (s/split str #"(?=[A-Z])"))))
+(defn de-camelcase [str]
+    (s/join "-" (map s/lower-case (s/split str #"(?=[A-Z])"))))
 
 
 ;; (defn build
@@ -89,7 +89,7 @@
 ;;    ))
 
 (defn build!
-  ([node] (build node []))
+  ([node] (build! node []))
   ([node path]
    (when-let [methods (get node "methods")]
      (let [api-namespace (de-camelcase (s/join "." (concat (:ns-base-path env) path)))
@@ -312,3 +312,212 @@
 ;; general usefulness
 (require '[clojure.string :as str]
          '[clojure.java.io :as io])
+
+
+
+;; let's get back to our core purpose
+
+(defn disco-bootstrap
+  [params]
+  (:body (client/get (templ/uritemplate
+                      (str (:discovery-base-url env)
+                           "apis/{api}/{version}/rest")
+                      params) {:accept :json :as :json})))
+
+
+(def admin_sdk_v1 (disco-bootstrap {:api "admin" :version "directory_v1"}))
+
+(defn build!
+  ([node] (build! node []))
+  ([node path]
+   (when-let [methods (:methods node)]
+     (let [api-namespace (de-camelcase (str/join "." (concat (:ns-base-path env) (map name path))))
+           pushed-namespace *ns*]
+       (println api-namespace)
+       (in-ns (symbol api-namespace))
+;;       (refer-clojure) ;; this isn't actually required
+       (reduce-kv (fn [m k v]
+                    (let [method-name (symbol (de-camelcase (name k)))
+                          method-meta {:doc (:description v)}]
+                      (println (str api-namespace ": " method-name ": " method-meta))
+                      (intern (symbol api-namespace) (with-meta method-name method-meta) (fn[] v))
+                      ))
+                  nil (:methods node))
+       (in-ns (ns-name pushed-namespace))))
+   (when-let [resources (:resources node )]
+     (reduce-kv (fn [m k v]
+                  (assoc m (de-camelcase (name k)) (build! v (conj path k))))
+                {}
+                resources))
+   ))
+
+(defn location? [location]
+  (fn [v] (= location (:location (last v)))))
+
+
+;; fields parameter syntax described here: https://developers.google.com/drive/api/v3/performance#partial
+
+
+(defn build-authn-url [{:keys
+                        [auth_uri scope response_type redirect_uri]
+                        :as authn-data
+                        :or {response_type "code"
+                             redirect_uri oob-redirect-uri}}]
+  (let [scope-str (s/join " " scope)
+        params (conj (select-keys authn-data [:client_id
+                                              :response_type
+                                              :code_challenge
+                                              :code_challenge_method
+                                              :state
+                                              :login_hint])
+                     {:scope scope-str
+                      :response_type response_type
+                      :redirect_uri redirect_uri})]
+    (str auth_uri "?"
+         (s/join "&"
+                 (reduce-kv
+                  (fn [c k v]
+                    (conj c
+                          (str (URLEncoder/encode (name k))
+                               "="
+                               (URLEncoder/encode v)))) [] params)))
+    ))
+
+
+(defn build!
+  ([node] (build! node []))
+  ([node path]
+   (when-let [methods (:methods node)]
+     (reduce-kv (fn [m k v]
+                  (println (str  ": " k ": " method-meta))
+                    (intern (symbol api-namespace) (with-meta method-name method-meta) (fn[] v))
+                    ))
+                nil (:methods node))
+     )
+   (when-let [resources (:resources node )]
+     (reduce-kv (fn [m k v]
+                  (assoc m (de-camelcase (name k)) (build! v (conj path k))))
+                {}
+                resources))
+  )
+
+
+(defn build-1 [api]
+  ;;params {:userKey "jeff" :fields "a,b,c"}
+  ;;api admin_sdk_v1
+  ;;method (:get (:methods (:users (:resources admin_sdk_v1))))
+  (fn [& {:keys [method params]}]
+    (let [all-param-schema (conj (:parameters api) (:parameters method))
+          location? (fn [location] (fn [v] (= location (:location (last v)))))
+          pathp (into {} (filter (location? "path") all-param-schema))
+          queryp (into {} (filter (location? "query") all-param-schema))
+          path (templ/uritemplate (:path method) (select-keys params (keys pathp)))
+          query (build-query (select-keys params (keys queryp)))
+          uri (str (:rootUrl api) (:servicePath api) path (if query (str "?" query) ""))]
+      uri)
+    )
+  )
+(def admin-sdk-1 (build-1 admin_sdk_v1))
+(admin-sdk-1 :method (:get (:methods (:users (:resources admin_sdk_v1))))
+             :params {:userKey "jeff@domain"})
+(def user-account
+  (client/get (admin-sdk-1 :method (:get (:methods (:users (:resources admin_sdk_v1))))
+                           :params {:userKey "jeff@domain"})
+              {:accept :json :as :json
+               :oauth-token (:access_token auth-token)})
+  )
+
+(keys (into {}(reduce-kv (fn [m k v] (conj m {(keyword (:id v)) v}))
+                         nil (:methods (:users (:resources admin_sdk_v1)))
+                         )))
+
+(defn rkv [start]
+  (let [methodmap (fn [start]
+                    (if start
+                      (into {}
+                            (reduce-kv (fn [m k v]
+                                         (conj m {(keyword (:id v)) v}))
+                                       nil
+                                       start)
+                            )))
+        resourcemap (fn r [start]
+                      (if start
+                        (into {}
+                              (reduce-kv (fn [m k v]
+                                           (conj m (r (:resources v)) (methodmap (:methods v))))
+                                         nil
+                                         start)
+                              )))]
+    (into {} (conj (methodmap (:methods start)) (resourcemap (:resources start))))))
+    
+(reduce-kv (fn [m k v]
+             (let [t (println m k v)]
+               (conj m (rkv (:methods m)) (rkv (:resources m)))))
+           nil
+           start)
+(rkv start)
+
+(defn build-2 [api]
+  (let [methods (fn [start]
+                  (if start
+                    (into {}
+                          (reduce-kv (fn [m k v]
+                                       (conj m {(keyword (:id v)) v}))
+                                     nil
+                                     start)
+                          )))
+        resources (fn r [start]
+                    (if start
+                      (into {}
+                            (reduce-kv (fn [m k v]
+                                         (conj m (r (:resources v)) (methods (:methods v))))
+                                       nil
+                                       start)
+                            )))
+        method-map (into {} (conj (methods (:methods api)) (resources (:resources api))))]
+    (fn [& {:keys [method params]}]
+      (let [method-data (method-map method)
+            all-param-schema (conj (:parameters api) (:parameters method-data))
+            location? (fn [location] (fn [v] (= location (:location (last v)))))
+            pathp (into {} (filter (location? "path") all-param-schema))
+            queryp (into {} (filter (location? "query") all-param-schema))
+            path (templ/uritemplate (:path method-data) (select-keys params (keys pathp)))
+            query (build-query (select-keys params (keys queryp)))
+            uri (str (:rootUrl api) (:servicePath api) path (if query (str "?" query) ""))]
+        uri)
+      ))
+)
+
+(def admin-sdk-2 (build-2 admin_sdk_v1))
+(admin-sdk-2 :method :directory.users.get :params {:userKey "jeff@domain"})
+(def user-account
+  (client/get (admin-sdk-1 :method (:get (:methods (:users (:resources admin_sdk_v1))))
+                           :params {:userKey "jeff@domain"})
+              {:accept :json :as :json
+               :oauth-token (:access_token auth-token)}))
+      
+;; good bit
+(require '[cprop.core :refer [load-config]]
+         '[mount.core :as mount]
+         '[cheshire.core :as cheshire]
+         '[uritemplate-clj.core :as templ]
+         '[clj-http.client :as client]
+         '[gappy.oauth2 :as oauth2]
+         '[gappy.config :refer [env]]
+         '[gappy.util :as util]
+         '[gappy.build :as build])
+(mount/start)
+
+(def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
+(def icreds (:installed creds))
+(def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"]))
+
+(def admin_sdk_v1 (build/disco-bootstrap {:api "admin" :version "directory_v1"}))
+(def admin-sdk-2 (build/build-2 admin_sdk_v1))
+(def user-account
+  (client/get (admin-sdk-2 :method :directory.users.get
+                           :params {:userKey "jeff@domain"})
+              {:accept :json :as :json
+               :oauth-token (:access_token auth-token)}))
+(:body user-account)
+(oauth2/revoke-token auth-token)
