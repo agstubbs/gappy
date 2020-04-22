@@ -11,15 +11,30 @@
             [clojure.core.async :as a])
   (:import java.net.URLEncoder))
 
-(defn build-query-str [m]
-    (s/join "&"
-            (reduce-kv
-             (fn [c k v]
-               (conj c
-                     (str (URLEncoder/encode (name k))
-                          "="
-                          (URLEncoder/encode v)))) [] m))
-  )
+;; clojure.string/split and java.lang.String.split use regex; boundary text can include regex special chars; so we just roll our own here
+(defn split-parts [parts boundary]
+  (if-let [occur (s/index-of parts boundary)]
+    (let [pre (subs parts 0 occur)
+          post (subs parts (+ (count boundary) occur))]
+      (if (= 0 (count boundary))
+        (list parts)
+        (concat (if (> occur 0) [pre]) (if (> (count post) 0) (split-parts post boundary))))
+      )
+    (list parts)))
+
+(defn build-query-str [m & {:keys [prepend] :as opts}]
+  (if (empty? m)
+    nil
+    (str (if prepend "?")
+         (s/join "&"
+                 (reduce-kv
+                  (fn [c k v]
+                    (conj c
+                          (str (URLEncoder/encode (name k))
+                               "="
+                               (URLEncoder/encode v)))) [] m))
+         )
+    ))
 
 (defn get-handler [state c]
   (fn [request-map]

@@ -8,5 +8,8 @@
         ring/ring-jetty-adapter {:mvn/version "1.8.0"}
         ring {:mvn/version "1.8.0"}
         metosin/ring-http-response {:mvn/version "0.9.1"}
+        org.apache.logging.log4j/log4j-api {:mvn/version "2.13.1"}
+        org.apache.logging.log4j/log4j-core {:mvn/version "2.13.1"}
+        org.apache.logging.log4j/log4j-1.2-api {:mvn/version "2.13.1"}
         }
  }

@@ -534,3 +534,65 @@
                             :params {:userKey example-username :fields "primaryEmail"})
                :auth-token auth-token))
 (oauth2/revoke-token auth-token)
+
+
+;; try a bit of batching now?
+
+(require '[clj-http.multipart :as m])
+(import '[org.apache.http Consts])
+;; https://developers.google.com/admin-sdk/directory/v1/guides/batch
+;; mime-type is application/http for each part
+;; looking at the source, we need to specify encoding if we want to specify mime-type
+;; mime type application/http is registered https://www.iana.org/assignments/media-types/media-types.xhtml
+;; and described https://tools.ietf.org/html/rfc7230
+(.writeTo (m/create-multipart-entity [{:name "a" :content "value" :mime-type "application/http" :encoding Consts/UTF_8} {:name "b" :content "more"}] {}) (System/out))
+;; now what should the contents be? an http request that might be sent individually
+
+(require '[clj-http.headers :as h])
+(.assoc (h/header-map :content-type "yes" :host "bob" :cookie "please" :cookie "thanks") :accept-encoding "json")
+
+(.writeTo
+       (m/create-multipart-entity
+        [{:name "name" :content (c/batch-1 (admin-sdk-3 :method :directory.users.get
+                              :params {:userKey example-username :fields "primaryEmail"}
+                              :headers {:content-type "application/json"}))
+          :mime-type "application/http"
+          :encoding Consts/UTF_8 }]
+        {}) 
+       (System/out))
+
+;; N.B.
+;; * content-type in parts is very unforgiving; MUST be application/http, no room for "encoding" data; will spit out a 500 error with no explanation (not that I'm bitter)
+;; * have to create and submit our own ContentBody as the make-multipart-body methods do not have a shrinkwrap for our use case
+
+;; this won't work as content-type will be set to text/plain
+(.writeTo (m/create-multipart-entity [{:name "a"
+                                       :content (StringBody. (c/batch-1 (admin-sdk-3 :method :directory.users.get
+                                                                                     :params {:userKey example-username :fields "primaryEmail"})))}]
+                                     {}) (System/out))
+
+(ContentType/create "application/http")
+
+;; this works
+(def response (client/post
+               (str (:rootUrl admin_sdk_v1) (:batchPath admin_sdk_v1))
+               {:multipart [{:name "a"
+                             :content (StringBody.
+                                       (c/batch-1
+                                        (admin-sdk-3 :method :directory.users.get
+                                                     :params {:userKey example-username
+                                                              :fields "primaryEmail"}))
+                                       (ContentType/create "application/http") )}]
+                :mime-subtype "mixed"
+                :encoding Consts/UTF_8
+                :oauth-token (:access_token new-token)
+                :debug true}))
+
+;; have to decode the multipart response though too...
+(def r-header (:headers response))
+(def r-body (str \return \newline (:body response)))
+(def r-content-type (get r-header "Content-Type"))
+(def boundary
+  (let [bmarker "boundary="]
+    (str \return \newline "--" (subs r-content-type (+ (s/index-of r-content-type bmarker) (count bmarker))))))    
+(def parts (util/split-parts r-body boundary))
