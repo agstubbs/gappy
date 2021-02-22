@@ -588,11 +588,44 @@
                 :oauth-token (:access_token new-token)
                 :debug true}))
 
+;; RFCs related to this
+;; https://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.7
+;; https://tools.ietf.org/html/rfc7231 (supersedes 2616)
+;; https://tools.ietf.org/html/rfc2046#section-5.1.1 (referenced in s 3.1.1.4 of RFC 7231)
 ;; have to decode the multipart response though too...
 (def r-header (:headers response))
+;; boundary actually has crlf prepended https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html
 (def r-body (str \return \newline (:body response)))
 (def r-content-type (get r-header "Content-Type"))
 (def boundary
   (let [bmarker "boundary="]
-    (str \return \newline "--" (subs r-content-type (+ (s/index-of r-content-type bmarker) (count bmarker))))))    
+    (str \return \newline "--"
+         (subs r-content-type
+               (+ (s/index-of r-content-type bmarker)
+                  (count bmarker))))))    
 (def parts (util/split-parts r-body boundary))
+
+(cheshire/parse-string
+ (second
+  (util/split-first
+   (second (util/split-first
+            (first parts) util/crlfcrlf)) util/crlfcrlf)) true)
+
+(-> parts
+    first
+    (util/split-first util/crlfcrlf)
+    second
+    (util/split-first util/crlfcrlf)
+    second
+    (cheshire/parse-string true))
+
+(-> parts
+    first
+    util/header-body :body
+    util/header-body :body
+    (cheshire/parse-string true))
+
+
+(util/get-http-response (:body (util/header-body (first parts))))
+
+(util/process (util/header-body (first parts)))
