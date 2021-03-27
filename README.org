@@ -1,2 +1,16 @@
 * gappy
 Intention: Build Clojure bindings for Google APIs from [[https://developers.google.com/discovery/][Google Discovery API]]
+
+* Dependencies
+
+- clojure :: https://github.com/clojure/clojure
+- core async :: https://github.com/clojure/core.async
+- cprop :: https://github.com/tolitius/cprop
+- mount :: https://github.com/tolitius/mount
+- cheshire :: https://github.com/dakrone/cheshire
+- uritemplate-clj :: https://github.com/mwkuster/uritemplate-clj
+- clj-http :: https://github.com/dakrone/clj-http
+- ring :: https://github.com/ring-clojure/ring
+- ring-http-response :: https://github.com/metosin/ring-http-response
+- log4j :: https://logging.apache.org/log4j/2.x/index.html
+
