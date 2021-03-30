@@ -1,6 +1,41 @@
 * gappy
 Intention: Build Clojure bindings for Google APIs from [[https://developers.google.com/discovery/][Google Discovery API]]
 
+* Use
+
+Looking at the other language bindings that exist, conceptually, each API is split into a number of different Resources, each Resource having a number of functions associated with it, and this is basically in line with the structure of the discovery document. Compare and contrast.
+
+** Python
+#+begin_src python
+  service.users().list(customer='my_customer', maxResults=10,
+                                  orderBy='email').execute()
+#+end_src
+
+** Java
+#+begin_src java
+  service.users().list()
+                  .setCustomer("my_customer")
+                  .setMaxResults(10)
+                  .setOrderBy("email")
+                  .execute();
+#+end_src
+
+** JavaScript
+#+begin_src javascript
+  var optionalArgs = {
+      customer: 'my_customer',
+      maxResults: 10,
+      orderBy: 'email'
+    };
+    var response = AdminDirectory.Users.list(optionalArgs);
+#+end_src
+
+** Go
+#+begin_src go
+  r, err := srv.Users.List().Customer("my_customer").MaxResults(10).
+                  OrderBy("email").Do()
+#+end_src
+
 * Dependencies
 
 - clojure :: https://github.com/clojure/clojure
