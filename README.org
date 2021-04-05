@@ -1,17 +1,20 @@
 * gappy
 Intention: Build Clojure bindings for Google APIs from [[https://developers.google.com/discovery/][Google Discovery API]]
 
-* Use
+* Design
 
+** Other Language Bindings for Google APIs
 Looking at the other language bindings that exist, conceptually, each API is split into a number of different Resources, each Resource having a number of functions associated with it, and this is basically in line with the structure of the discovery document. Compare and contrast.
 
-** Python
+Looking at the sample code from the [[https://developers.google.com/admin-sdk/directory/v1/get-start/getting-started][Google Workspace Admin SDK Directory API Get Started documentation]] we can see an idiom that crosses several languages.
+
+*** Python
 #+begin_src python
   service.users().list(customer='my_customer', maxResults=10,
                                   orderBy='email').execute()
 #+end_src
 
-** Java
+*** Java
 #+begin_src java
   service.users().list()
                   .setCustomer("my_customer")
@@ -20,7 +23,7 @@ Looking at the other language bindings that exist, conceptually, each API is spl
                   .execute();
 #+end_src
 
-** JavaScript
+*** JavaScript
 #+begin_src javascript
   var optionalArgs = {
       customer: 'my_customer',
@@ -30,11 +33,24 @@ Looking at the other language bindings that exist, conceptually, each API is spl
     var response = AdminDirectory.Users.list(optionalArgs);
 #+end_src
 
-** Go
+*** Go
 #+begin_src go
   r, err := srv.Users.List().Customer("my_customer").MaxResults(10).
                   OrderBy("email").Do()
 #+end_src
+
+*** Ruby
+Ruby is the outlier.
+
+#+begin_src ruby
+  response = service.list_users(customer:    "my_customer",
+                                max_results: 10,
+                                order_by:    "email")
+#+end_src
+
+** Cognitect example: AWS API
+
+Cognitect's bindings for AWS API are generated using the data descriptions from the [[https://github.com/aws/aws-sdk-js/][AWS JavaScript library]]. 
 
 * Dependencies
 

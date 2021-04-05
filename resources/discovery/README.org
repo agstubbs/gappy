@@ -1,0 +1,5 @@
+* discovery cache
+
+Herein should be cached any API discover documents that you don't want to have to keep requesting from Google.
+
+I've chosen not to commit such files into this repository.

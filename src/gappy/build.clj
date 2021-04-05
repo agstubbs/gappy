@@ -6,13 +6,6 @@
             [clojure.string :as s])
   )
 
-(defn disco-bootstrap
-  [params]
-  (:body (client/get (templ/uritemplate
-                      (str (:discovery-base-url env)
-                           "apis/{api}/{version}/rest")
-                      params) {:accept :json :as :json})))
-
 (defn build-2 [api]
   (let [methods (fn [start]
                   (if start

@@ -503,13 +503,14 @@
          '[cheshire.core :as cheshire]
          '[uritemplate-clj.core :as templ]
          '[clj-http.client :as client]
+         '[gappy.discovery :as disco]
          '[gappy.oauth2 :as oauth2]
          '[gappy.config :refer [env]]
          '[gappy.util :as util]
          '[gappy.build :as build])
 (mount/start)
 
-(def admin_sdk_v1 (build/disco-bootstrap {:api "admin" :version "directory_v1"}))
+(def admin_sdk_v1 (disco/get-discovery-document {:api :admin :version :directory_v1}))
 (def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
 (def icreds (:installed creds))
 (def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"]))
@@ -629,3 +630,26 @@
 (util/get-http-response (:body (util/header-body (first parts))))
 
 (util/process (util/header-body (first parts)))
+
+;; (-> client (resources :users :chrome :printers) (apply :list)) ??
+
+;; service.users().list() ??
+;; (-> client
+;;     (methods :users)
+;;     (apply :list))
+
+;; service.users().photos().get() ??
+;; (-> client
+;;     (resources :users)
+;;     (methods :photos)
+;;     (apply :get))
+
+;; (actually more complicated than this...)
+;; service.customers().chrome().printers().list() ??
+;; (-> client
+;;     (resources :customers)
+;;     (resources :chrome)
+;;     (resources :printers)
+;;     (methods :list))
+
+
