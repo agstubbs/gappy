@@ -84,12 +84,15 @@
 (defn resource [client k & ks]
   (assoc client :resource (into [] (conj ks k))))
 
+(defn -get-resource-path [resource]
+  (into []
+        (->> resource
+             :resource
+             (apply conj [:document])
+             (interpose :resources))))
+
 (defn doc-json [resource method]
-  (let [path (conj (into []
-                         (->> resource
-                              :resource
-                              (apply conj [:document])
-                              (interpose :resources)))
+  (let [path (conj (-get-resource-path resource)
                    :methods method)
         method-def (get-in resource path)
         method-scopes (map keyword (:scopes method-def))
@@ -103,10 +106,10 @@
                       :scopes
                       (select-keys method-scopes))
         ]
-    {:common-params (-> resource :document :parameters)
+    {:common-parameters (-> resource :document :parameters)
      :scopes (merge null-scope-def scope-def)
-     :description (get-in resource (conj path :description))
-     :parameters (get-in resource (conj path :parameters))
+     :description (:description method-def)
+     :parameters (:parameters method-def)
      }))
 
 (defn doc-str [resource method]
@@ -115,10 +118,5 @@
     ))
 
 (defn ops [resource]
-  (let [path (conj (into []
-                         (->> resource
-                              :resource
-                              (apply conj [:document])
-                              (interpose :resources)))
-                   :methods)]
+  (let [path (conj (-get-resource-path resource) :methods)]
     (keys (get-in resource path))))
