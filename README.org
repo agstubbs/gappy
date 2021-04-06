@@ -52,6 +52,18 @@ Ruby is the outlier.
 
 Cognitect's bindings for AWS API are generated using the data descriptions from the [[https://github.com/aws/aws-sdk-js/][AWS JavaScript library]]. 
 
+** First fix: map based, resource based
+
+(Thus far) unspoken aim is for compatability with ClojureScript and Babashka in addition to Clojure "Classic".
+
+Interface something along these lines is first idea
+
+#+begin_src clojure
+  (def client (ns/client :admin :directory_v1))
+  (def users-resource (ns/resource client :users))
+  (ns/ops users-resource)
+  (ns/doc-str users-resource :list)
+#+end_src
 * Dependencies
 
 - clojure :: https://github.com/clojure/clojure
