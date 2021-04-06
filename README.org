@@ -30,7 +30,7 @@ Looking at the sample code from the [[https://developers.google.com/admin-sdk/di
       maxResults: 10,
       orderBy: 'email'
     };
-    var response = AdminDirectory.Users.list(optionalArgs);
+  var response = AdminDirectory.Users.list(optionalArgs);
 #+end_src
 
 *** Go

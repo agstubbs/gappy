@@ -1,7 +1,6 @@
 {
  :discovery-directory-url "https://discovery.googleapis.com/discovery/v1/apis"
  :discovery-directory-resource "directory.json"
- :discovery-bootstrap-url "https://www.googleapis.com/discovery/v1/"
  :discovery-cache-location "discovery/"
  :ns-base-path ["gappy" "build"]
  :credentials-file "/Users/ags/.credentials/gappy.json"

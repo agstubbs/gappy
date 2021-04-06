@@ -80,3 +80,45 @@
          :headers headers})
       ))
 )
+
+(defn resource [client k & ks]
+  (assoc client :resource (into [] (conj ks k))))
+
+(defn doc-json [resource method]
+  (let [path (conj (into []
+                         (->> resource
+                              :resource
+                              (apply conj [:document])
+                              (interpose :resources)))
+                   :methods method)
+        method-def (get-in resource path)
+        method-scopes (map keyword (:scopes method-def))
+        null-scope-def (reduce #(assoc %1 (keyword %2) :not-found)
+                               {}
+                               method-scopes)
+        scope-def (-> resource
+                      :document
+                      :auth
+                      :oauth2
+                      :scopes
+                      (select-keys method-scopes))
+        ]
+    {:common-params (-> resource :document :parameters)
+     :scopes (merge null-scope-def scope-def)
+     :description (get-in resource (conj path :description))
+     :parameters (get-in resource (conj path :parameters))
+     }))
+
+(defn doc-str [resource method]
+  (let [doc-json (doc-json resource method)]
+    (:description doc-json)
+    ))
+
+(defn ops [resource]
+  (let [path (conj (into []
+                         (->> resource
+                              :resource
+                              (apply conj [:document])
+                              (interpose :resources)))
+                   :methods)]
+    (keys (get-in resource path))))

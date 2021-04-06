@@ -40,3 +40,9 @@
           headers (:headers retrieved)
           body (:body retrieved)]
       (with-meta body {:headers headers :status status}))))
+
+(defn client [{:keys [api version] :as params}]
+  {:api api
+   :version version
+   :document (get-discovery-document params)})
+
