@@ -54,7 +54,7 @@ Cognitect's bindings for AWS API are generated using the data descriptions from 
 
 ** First fix: map based, resource based
 
-(Thus far) unspoken aim is for compatability with ClojureScript and Babashka in addition to Clojure "Classic".
+(Thus far) unspoken aim is for compatibility with ClojureScript and Babashka in addition to Clojure "Classic".
 
 Interface something along these lines is first idea
 
