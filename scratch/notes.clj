@@ -653,3 +653,18 @@
 ;;     (methods :list))
 
 
+;;;;
+
+(require '[gappy.api :as api :reload true]
+         '[mount.core :as mount])
+(mount/start)
+(def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
+(def icreds (:installed creds))
+(def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/admin.directory.user.readonly"]))
+(def admin-directory_v1 (api/client {:api :admin :version :directory_v1 :default-client-params {:oauth-token (:access_token auth-token)}}))
+(def r-users (api/resource admin-directory_v1 :users))
+(api/ops r-users)
+(api/doc r-users :list)
+(def user-list (api/invoke r-users {:op :list :request {:customer "my_customer"}}))
+(def first-user (-> user-list :users first))
+(api/invoke r-users {:op :get :request {:userKey (:primaryEmail first-user) :customer "my_customer"}})

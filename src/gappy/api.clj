@@ -4,61 +4,79 @@
             [uritemplate-clj.core :as templ]
             [gappy.util :as util]
             [gappy.discovery :as disco]
+            [clojure.string :as s]
   ))
 
-(defn client [{:keys [api version] :as params}]
-  {:api api
-   :version version
-   :document (disco/get-discovery-document params)})
+(defn client [{:keys [api version default-client-params] :as params}]
+  (assoc params
+         :document (disco/get-discovery-document (select-keys params [:api :version]))))
 
-(defn resource [client k & ks]
-  (assoc client :resource (into [] (conj ks k))))
-
-(defn -get-resource-path [resource]
-  (into []
-        (->> resource
-             :resource
-             (apply conj [:document])
-             (interpose :resources))))
-
-(defn -get-method-def [resource method]
-  (let [path (conj (-get-resource-path resource)
-                   :methods method)]
-    (get-in resource path)))
-
-(defn doc-edn [resource method]
-  (let [method-def (-get-method-def resource method)
-        method-scopes (map keyword (:scopes method-def))
+(defn -method-data [client method-path]
+  (let [method-data (get-in client method-path)
+        method-scopes (map keyword (:scopes method-data))
         null-scope-def (reduce #(assoc %1 (keyword %2) :not-found)
                                {}
                                method-scopes)
-        scope-def (-> resource
+        scope-def (-> client
                       :document
                       :auth
                       :oauth2
                       :scopes
                       (select-keys method-scopes))
+        location? (fn [location] (fn [v] (= location (:location (last v)))))
+        all-param-schema (merge (-> client :document :parameters) (:parameters method-data))
+        path-params (into {} (filter (location? "path") all-param-schema))
+        query-params (into {} (filter (location? "query") all-param-schema))
+        root-url (-> client :document :rootUrl)
+        service-path (-> client :document :servicePath)
+        common-parameters (-> client :document :parameters)
         ]
-    {:common-parameters (-> resource :document :parameters)
+    {:method method-data
+     :client-path method-path
+     :http-method (keyword (s/lower-case (:httpMethod method-data)))
+     :full-path (str root-url service-path (:path method-data))
+     :root-url root-url
+     :service-path service-path
+     :common-parameters common-parameters
+     :method-parameters (:parameters method-data)
+     :query-parameters query-params
+     :path-parameters path-params
+     :description (:description method-data)
      :scopes (merge null-scope-def scope-def)
-     :description (:description method-def)
-     :parameters (:parameters method-def)
      }))
 
-(defn doc-str [resource method]
-  (let [doc-edn (doc-edn resource method)]
-    (:description doc-edn)
-    ))
+(defn resource [client k & ks]
+  (let [resource-path (conj ks k)
+        rpath (conj (into [] (->> resource-path (into [:document]) (interpose :resources))) :methods)
+        method-names (keys (get-in client rpath))
+        methods (zipmap method-names
+                        (map #(-method-data client (conj rpath %1)) method-names))]
+    (merge client
+           {:resource-path resource-path
+            :methods methods
+            :method-names method-names
+            :rpath rpath
+            :other (get-in client rpath)})))
+
+(defn doc [resource method]
+  (-> resource :methods method :description))
 
 (defn ops [resource]
-  (let [path (conj (-get-resource-path resource) :methods)]
-    (keys (get-in resource path))))
-
+  (-> resource :methods keys))
 
 (defmulti invoke
   (fn [resource &[{:keys [op] :as params}]]
-    (-> resource (-get-method-def op) :httpMethod)))
+    (-> resource :methods op :http-method)))
 
-(defmethod invoke "GET" [resource & [params]]
-  params
-  )
+(defmethod invoke :get [resource & [{:keys [op request client-params] :as params}]]
+  (let [m (-> resource :methods op)
+        path-params (select-keys request (keys (:path-parameters m)))
+        query-params (select-keys request (keys (:query-parameters m)))
+        full-path (templ/uritemplate (:full-path m) path-params)
+        query-str (util/build-query-str query-params)
+        uri (str full-path (if query-str (str "?" query-str)))
+        response (http/get uri
+                           (merge {:accept :json :as :json}
+                                  (:default-client-params resource)))]
+    (with-meta (:body response) (dissoc response :body))
+    ))
