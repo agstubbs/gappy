@@ -656,6 +656,8 @@
 ;;;;
 
 (require '[gappy.api :as api :reload true]
+         '[gappy.config :refer [env]]
+         '[cheshire.core :as cheshire]
          '[mount.core :as mount])
 (mount/start)
 (def creds (-> env :credentials-file slurp (cheshire/parse-string true)))
@@ -665,6 +667,26 @@
 (def r-users (api/resource admin-directory_v1 :users))
 (api/ops r-users)
 (api/doc r-users :list)
+(api/resources admin-directory_v1)
+(api/resources r-users)
 (def user-list (api/invoke r-users {:op :list :request {:customer "my_customer"}}))
 (def first-user (-> user-list :users first))
 (api/invoke r-users {:op :get :request {:userKey (:primaryEmail first-user) :customer "my_customer"}})
+
+;;;
+(require '[gappy.api :as api :reload true]
+         '[gappy.config :refer [env]]
+         '[cheshire.core :as cheshire]
+         '[gappy.util :as util]
+         '[mount.core :as mount])
+(mount/start)
+(def client-drive (api/client {:api :drive :version :v3}))
+(def resource-files (api/resource client-drive :files))
+(api/ops resource-files)
+(api/doc resource-files :list)
+
+(def icreds (-> env :credentials-file slurp (cheshire/parse-string true) :installed))
+(def auth-token (util/run-browser-flow icreds ["https://www.googleapis.com/auth/drive.metadata.readonly"]))
+
+(def files-list (api/invoke resource-files {:op :list :request {:customer "my_customer"} :client-params {:oauth-token (:access_token auth-token)}}))
+(def first-file (-> files-list :files first))

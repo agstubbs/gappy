@@ -46,23 +46,29 @@
      }))
 
 (defn resource [client k & ks]
-  (let [resource-path (conj ks k)
-        rpath (conj (into [] (->> resource-path (into [:document]) (interpose :resources))) :methods)
-        method-names (keys (get-in client rpath))
+  (let [resource-path (into [] (conj ks k))
+        rpath (into [] (->> resource-path (into [:document]) (interpose :resources)))
+        resource (get-in client rpath)
+        method-names (keys (:methods resource))
         methods (zipmap method-names
-                        (map #(-method-data client (conj rpath %1)) method-names))]
+                        (map #(-method-data client (conj rpath :methods %1)) method-names))]
     (merge client
            {:resource-path resource-path
             :methods methods
             :method-names method-names
             :rpath rpath
-            :other (get-in client rpath)})))
+            :resource resource})))
 
 (defn doc [resource method]
   (-> resource :methods method :description))
 
 (defn ops [resource]
   (-> resource :methods keys))
+
+(defn resources [o]
+  (let [base (or (:resource o) (:document o))
+        path (or (:resource-path o) [])]
+    (->> base :resources keys (map #(conj path %)))))
 
 (defmulti invoke
   (fn [resource &[{:keys [op] :as params}]]
@@ -77,6 +83,24 @@
         uri (str full-path (if query-str (str "?" query-str)))
         response (http/get uri
                            (merge {:accept :json :as :json}
-                                  (:default-client-params resource)))]
+                                  (:default-client-params resource)
+                                  client-params))]
+    (with-meta (:body response) (dissoc response :body))
+    ))
+
+(defmethod invoke :post [resource & [{:keys [op request body client-params] :as params}]]
+  (let [m (-> resource :methods op)
+        path-params (select-keys request (keys (:path-parameters m)))
+        query-params (select-keys request (keys (:query-parameters m)))
+        full-path (templ/uritemplate (:full-path m) path-params)
+        query-str (util/build-query-str query-params)
+        uri (str full-path (if query-str (str "?" query-str)))
+        response (http/post uri
+                            (merge {:accept :json :as :json
+                                    :content-type :json
+                                    :json-opts {}}
+                                   (:default-client-params resource)
+                                   (if body {:body body})
+                                   client-params))]
     (with-meta (:body response) (dissoc response :body))
     ))
