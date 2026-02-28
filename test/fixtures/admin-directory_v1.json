@@ -1,0 +1,227 @@
+{
+  "kind": "discovery#restDescription",
+  "discoveryVersion": "v1",
+  "id": "admin:directory_v1",
+  "name": "admin",
+  "version": "directory_v1",
+  "title": "Admin SDK API",
+  "description": "Admin SDK lets administrators of enterprise domains to view and manage resources like user, groups etc.",
+  "rootUrl": "https://admin.googleapis.com/",
+  "servicePath": "admin/directory/v1/",
+  "batchPath": "batch",
+  "parameters": {
+    "alt": {
+      "type": "string",
+      "description": "Data format for the response.",
+      "default": "json",
+      "location": "query"
+    },
+    "fields": {
+      "type": "string",
+      "description": "Selector specifying which fields to include in a partial response.",
+      "location": "query"
+    },
+    "key": {
+      "type": "string",
+      "description": "API key.",
+      "location": "query"
+    },
+    "prettyPrint": {
+      "type": "boolean",
+      "description": "Returns response with indentations and line breaks.",
+      "default": "true",
+      "location": "query"
+    }
+  },
+  "auth": {
+    "oauth2": {
+      "scopes": {
+        "https://www.googleapis.com/auth/admin.directory.user": {
+          "description": "View and manage the provisioning of users on your domain"
+        },
+        "https://www.googleapis.com/auth/admin.directory.user.readonly": {
+          "description": "See info about users on your domain"
+        },
+        "https://www.googleapis.com/auth/admin.directory.group": {
+          "description": "View and manage the provisioning of groups on your domain"
+        }
+      }
+    }
+  },
+  "resources": {
+    "users": {
+      "methods": {
+        "list": {
+          "id": "directory.users.list",
+          "path": "users",
+          "httpMethod": "GET",
+          "description": "Retrieves a paginated list of either deleted users or all users in a domain.",
+          "parameters": {
+            "customer": {
+              "type": "string",
+              "description": "The unique ID for the customer's Google Workspace account.",
+              "location": "query"
+            },
+            "domain": {
+              "type": "string",
+              "description": "The domain name.",
+              "location": "query"
+            },
+            "maxResults": {
+              "type": "integer",
+              "description": "Maximum number of results to return.",
+              "location": "query"
+            },
+            "orderBy": {
+              "type": "string",
+              "description": "Property to use for sorting results.",
+              "location": "query"
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Token to specify next page in the list.",
+              "location": "query"
+            }
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.user",
+            "https://www.googleapis.com/auth/admin.directory.user.readonly"
+          ]
+        },
+        "get": {
+          "id": "directory.users.get",
+          "path": "users/{userKey}",
+          "httpMethod": "GET",
+          "description": "Retrieves a user.",
+          "parameters": {
+            "userKey": {
+              "type": "string",
+              "description": "Identifies the user. Can be the user's primary email address, alias, or unique ID.",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.user",
+            "https://www.googleapis.com/auth/admin.directory.user.readonly"
+          ]
+        },
+        "insert": {
+          "id": "directory.users.insert",
+          "path": "users",
+          "httpMethod": "POST",
+          "description": "Creates a user.",
+          "parameters": {},
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.user"
+          ]
+        },
+        "update": {
+          "id": "directory.users.update",
+          "path": "users/{userKey}",
+          "httpMethod": "PUT",
+          "description": "Updates a user.",
+          "parameters": {
+            "userKey": {
+              "type": "string",
+              "description": "Identifies the user.",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.user"
+          ]
+        },
+        "patch": {
+          "id": "directory.users.patch",
+          "path": "users/{userKey}",
+          "httpMethod": "PATCH",
+          "description": "Patches a user.",
+          "parameters": {
+            "userKey": {
+              "type": "string",
+              "description": "Identifies the user.",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.user"
+          ]
+        },
+        "delete": {
+          "id": "directory.users.delete",
+          "path": "users/{userKey}",
+          "httpMethod": "DELETE",
+          "description": "Deletes a user.",
+          "parameters": {
+            "userKey": {
+              "type": "string",
+              "description": "Identifies the user.",
+              "required": true,
+              "location": "path"
+            }
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.user"
+          ]
+        }
+      },
+      "resources": {
+        "aliases": {
+          "methods": {
+            "list": {
+              "id": "directory.users.aliases.list",
+              "path": "users/{userKey}/aliases",
+              "httpMethod": "GET",
+              "description": "Lists all aliases for a user.",
+              "parameters": {
+                "userKey": {
+                  "type": "string",
+                  "description": "Identifies the user.",
+                  "required": true,
+                  "location": "path"
+                }
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/admin.directory.user",
+                "https://www.googleapis.com/auth/admin.directory.user.readonly"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "groups": {
+      "methods": {
+        "list": {
+          "id": "directory.groups.list",
+          "path": "groups",
+          "httpMethod": "GET",
+          "description": "Retrieves all groups of a domain or of a user given a userKey.",
+          "parameters": {
+            "customer": {
+              "type": "string",
+              "description": "The unique ID for the customer's Google Workspace account.",
+              "location": "query"
+            },
+            "maxResults": {
+              "type": "integer",
+              "description": "Maximum number of results to return.",
+              "location": "query"
+            },
+            "pageToken": {
+              "type": "string",
+              "description": "Token to specify next page in the list.",
+              "location": "query"
+            }
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/admin.directory.group"
+          ]
+        }
+      }
+    }
+  }
+}

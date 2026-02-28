@@ -1,6 +1,141 @@
 * gappy
 Intention: Build Clojure bindings for Google APIs from [[https://developers.google.com/discovery/][Google Discovery API]]
 
+* Usage
+
+** Quick Start
+
+#+begin_src clojure
+  (require '[gappy.api :as api])
+
+  ;; Create a client for a specific Google API
+  (def client (api/client {:api :admin :version :directory_v1}))
+
+  ;; Navigate to a resource
+  (def users (api/resource client :users))
+
+  ;; Discover available operations
+  (api/ops users)
+  ;; => (:list :get :insert :update :patch :delete)
+
+  ;; Read documentation for an operation
+  (api/doc users :list)
+  ;; => "Retrieves a paginated list of either deleted users or all users in a domain."
+
+  ;; Discover sub-resources
+  (api/resources users)
+  ;; => ([:users :aliases])
+#+end_src
+
+** Invoking Operations
+
+#+begin_src clojure
+  ;; GET - list users
+  (api/invoke users {:op :list
+                     :request {:customer "my_customer"
+                               :maxResults "10"
+                               :orderBy "email"}
+                     :client-params {:oauth-token "..."}})
+
+  ;; GET - get a specific user
+  (api/invoke users {:op :get
+                     :request {:userKey "alice@example.com"}
+                     :client-params {:oauth-token "..."}})
+
+  ;; POST - create a user
+  (api/invoke users {:op :insert
+                     :body (cheshire.core/generate-string
+                            {:name {:givenName "Bob" :familyName "Smith"}
+                             :primaryEmail "bob@example.com"
+                             :password "changeme"})
+                     :client-params {:oauth-token "..."}})
+
+  ;; PUT - full update
+  (api/invoke users {:op :update
+                     :request {:userKey "bob@example.com"}
+                     :body (cheshire.core/generate-string
+                            {:name {:givenName "Robert" :familyName "Smith"}})
+                     :client-params {:oauth-token "..."}})
+
+  ;; PATCH - partial update
+  (api/invoke users {:op :patch
+                     :request {:userKey "bob@example.com"}
+                     :body (cheshire.core/generate-string
+                            {:name {:givenName "Robert"}})
+                     :client-params {:oauth-token "..."}})
+
+  ;; DELETE
+  (api/invoke users {:op :delete
+                     :request {:userKey "bob@example.com"}
+                     :client-params {:oauth-token "..."}})
+#+end_src
+
+** Pagination
+
+#+begin_src clojure
+  ;; Automatically paginate through all results
+  (def all-users
+    (api/invoke-seq users {:op :list
+                           :request {:customer "my_customer"}
+                           :items-key :users
+                           :client-params {:oauth-token "..."}}))
+
+  ;; Returns a lazy sequence - take what you need
+  (take 50 all-users)
+#+end_src
+
+** Error Handling
+
+API errors are thrown as =ExceptionInfo= with structured data:
+
+#+begin_src clojure
+  (try
+    (api/invoke users {:op :get
+                       :request {:userKey "nonexistent@example.com"}
+                       :client-params {:oauth-token "..."}})
+    (catch clojure.lang.ExceptionInfo ex
+      (let [{:keys [status code message]} (ex-data ex)]
+        (println "Error:" status code message))))
+  ;; Error: 404 404 Not Found
+
+  ;; ex-data contains:
+  ;; {:gappy/error true
+  ;;  :status 404
+  ;;  :code 404
+  ;;  :message "Not Found"
+  ;;  :errors [{:message "Not Found" :reason "notFound"}]}
+#+end_src
+
+** OAuth2
+
+#+begin_src clojure
+  (require '[gappy.oauth2 :as oauth2]
+           '[gappy.util :as util])
+
+  ;; Browser-based OAuth2 flow with PKCE
+  (def token
+    (util/run-browser-flow
+     {:auth_uri "https://accounts.google.com/o/oauth2/v2/auth"
+      :token_uri "https://oauth2.googleapis.com/token"
+      :client_id "your-client-id"
+      :client_secret "your-client-secret"}
+     ["https://www.googleapis.com/auth/admin.directory.user"]
+     :port 3000
+     :timeout 300000))
+
+  ;; Use token with invoke
+  (api/invoke users {:op :list
+                     :request {:customer "my_customer"}
+                     :client-params {:oauth-token (:access_token token)}})
+
+  ;; Refresh an expired token
+  (oauth2/refresh-token
+   {:token_uri "https://oauth2.googleapis.com/token"
+    :client_id "your-client-id"
+    :client_secret "your-client-secret"}
+   token)
+#+end_src
+
 * Design
 
 ** Other Language Bindings for Google APIs
@@ -50,20 +185,37 @@ Ruby is the outlier.
 
 ** Cognitect example: AWS API
 
-Cognitect's bindings for AWS API are generated using the data descriptions from the [[https://github.com/aws/aws-sdk-js/][AWS JavaScript library]]. 
+Cognitect's bindings for AWS API are generated using the data descriptions from the [[https://github.com/aws/aws-sdk-js/][AWS JavaScript library]].
 
-** First fix: map based, resource based
+** Gappy: data-driven, map-based
 
-(Thus far) unspoken aim is for compatibility with ClojureScript and Babashka in addition to Clojure "Classic".
+Gappy follows a data-driven approach inspired by Cognitect's aws-api. Rather than code-generating classes or builders, it treats API schemas as data and navigates them with generic functions.
 
-Interface something along these lines is first idea
+Aim is for compatibility with ClojureScript and Babashka in addition to Clojure "Classic".
+
+Core API surface:
 
 #+begin_src clojure
-  (def client (ns/client :admin :directory_v1))
-  (def users-resource (ns/resource client :users))
-  (ns/ops users-resource)
-  (ns/doc-str users-resource :list)
+  ;; Create client, navigate to resource, introspect, invoke
+  (def client (api/client {:api :admin :version :directory_v1}))
+  (def users (api/resource client :users))
+  (api/ops users)          ;; => (:list :get :insert :update :patch :delete)
+  (api/doc users :list)    ;; => "Retrieves a paginated list of..."
+  (api/resources users)    ;; => ([:users :aliases])
+  (api/invoke users {:op :list :request {:customer "my_customer"}})
+  (api/invoke-seq users {:op :list :request {:customer "my_customer"} :items-key :users})
 #+end_src
+
+* Development
+
+#+begin_src sh
+  # Run tests
+  clojure -M:test
+
+  # Build JAR
+  clojure -T:build jar
+#+end_src
+
 * Dependencies
 
 - clojure :: https://github.com/clojure/clojure
@@ -77,3 +229,6 @@ Interface something along these lines is first idea
 - ring-http-response :: https://github.com/metosin/ring-http-response
 - log4j :: https://logging.apache.org/log4j/2.x/index.html
 
+* License
+
+Eclipse Public License v2.0
