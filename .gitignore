@@ -1,3 +1,5 @@
 /.nrepl-port
 /.cpcache/
 /log/
+/target/
+linux-install.sh
